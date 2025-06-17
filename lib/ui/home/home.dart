@@ -59,7 +59,15 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
     final currentStep = _calculateCurrentStep(provider);
     final totalSteps = provider.isSelected ? 2 : 3;
 
-    /// Determine shimmer per-step based on the actual loading state
+    // Colors based on current theme
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final baseColor = colorScheme.surfaceVariant;
+    final completedIconColor = colorScheme.onPrimary;
+    final completedBgColor = colorScheme.primary;
+    final activeIconColor = colorScheme.onSurface;
+    final shimmerHighlight = colorScheme.primaryContainer;
+
     bool shouldShimmerStep(int stepIndex) {
       if (stepIndex == 1 && provider.isTextToImageLoading) return true;
       if (stepIndex == 2 && provider.isEnhanceImageLoading) return true;
@@ -76,17 +84,14 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
             totalSteps: totalSteps,
             currentStep: currentStep,
             size: 36,
-            selectedColor: Colors.grey.shade300,
-            unselectedColor: Colors.grey.shade300,
+            selectedColor: baseColor,
+            unselectedColor: baseColor,
             customStep: (index, color, _) {
               int stepIndex;
               if (provider.isSelected) {
-                stepIndex = index == 0
-                    ? 1
-                    : 3; // For 2 steps: Text-to-Image, Video
+                stepIndex = index == 0 ? 1 : 3;
               } else {
-                stepIndex =
-                    index + 1; // For 3 steps: Text-to-Image, Enhance, Video
+                stepIndex = index + 1;
               }
 
               bool isStepComplete = false;
@@ -108,26 +113,34 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
 
               if (isStepComplete) {
                 stepContent = Container(
-                  color: Colors.black,
-                  child: const Center(
-                    child: Icon(Icons.check, color: Colors.white, size: 28),
+                  color: completedBgColor,
+                  child: Center(
+                    child: Icon(
+                      Icons.check,
+                      color: completedIconColor,
+                      size: 28,
+                    ),
                   ),
                 );
               } else if (stepIndex == currentStep) {
                 stepContent = Container(
-                  color: Colors.grey.shade300,
-                  child: const Center(
-                    child: Icon(Icons.remove, color: Colors.black54, size: 28),
+                  color: baseColor,
+                  child: Center(
+                    child: Icon(
+                      Icons.remove,
+                      color: activeIconColor.withOpacity(0.6),
+                      size: 28,
+                    ),
                   ),
                 );
               } else {
-                stepContent = Container(color: Colors.grey.shade300);
+                stepContent = Container(color: baseColor);
               }
 
               if (shimmer) {
                 stepContent = Shimmer.fromColors(
-                  baseColor: Colors.grey.shade300,
-                  highlightColor: Colors.white,
+                  baseColor: baseColor,
+                  highlightColor: shimmerHighlight,
                   child: stepContent,
                 );
               }
@@ -164,10 +177,9 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: Colors.black87,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         const SizedBox(height: 8),
@@ -298,13 +310,10 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
+                              Text(
                                 "Select Image Model",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.black87,
-                                ),
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               IconButton(
                                 onPressed: () {
@@ -359,14 +368,11 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             "If you don't want to enhance the image, check this option.",
-                            style: TextStyle(
-                              fontWeight: FontWeight.normal,
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
                         IconButton(
@@ -390,13 +396,10 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             "Select Video Model",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
                           GestureDetector(
@@ -458,7 +461,10 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.deepPurple.shade100,
+                            backgroundColor:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? Colors.deepPurple.shade700
+                                : Colors.deepPurple.shade100,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 14,
@@ -483,144 +489,149 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
                                   }
                                 },
                           icon: const Icon(Icons.image_outlined),
-                          label: const Text("Generate"),
+                          label: Text(
+                            "Generate",
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     _buildCustomProgressIndicator(provider),
+                    buildResponsiveContent(context, provider),
 
-                    if (provider.originalImageUrl != null)
-                      Column(
-                        children: [
-                          _buildImageCard(
-                            context,
-                            title: "Original Image",
-                            imageUrl: provider.originalImageUrl!,
-                          ),
-                          if (provider.processedImageUrl == null &&
-                              provider.step != 0)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: InkWell(
-                                onTap: provider.isLoading
-                                    ? null
-                                    : () {
-                                        final prompt = provider
-                                            .textController
-                                            .text
-                                            .trim();
-                                        if (prompt.isNotEmpty) {
-                                          provider.generateImageFlow(prompt, 2);
-                                        } else {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                "Please enter a prompt",
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.deepPurple.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Text(
-                                    'Next step',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                    // if (provider.originalImageUrl != null)
+                    //   Column(
+                    //     children: [
+                    //       _buildImageCard(
+                    //         context,
+                    //         title: "Original Image",
+                    //         imageUrl: provider.originalImageUrl!,
+                    //       ),
+                    //       if (provider.processedImageUrl == null &&
+                    //           provider.step != 0)
+                    //         Align(
+                    //           alignment: Alignment.centerRight,
+                    //           child: InkWell(
+                    //             onTap: provider.isLoading
+                    //                 ? null
+                    //                 : () {
+                    //                     final prompt = provider
+                    //                         .textController
+                    //                         .text
+                    //                         .trim();
+                    //                     if (prompt.isNotEmpty) {
+                    //                       provider.generateImageFlow(prompt, 2);
+                    //                     } else {
+                    //                       ScaffoldMessenger.of(
+                    //                         context,
+                    //                       ).showSnackBar(
+                    //                         const SnackBar(
+                    //                           content: Text(
+                    //                             "Please enter a prompt",
+                    //                           ),
+                    //                         ),
+                    //                       );
+                    //                     }
+                    //                   },
+                    //             borderRadius: BorderRadius.circular(12),
+                    //             child: Container(
+                    //               padding: const EdgeInsets.symmetric(
+                    //                 horizontal: 16,
+                    //                 vertical: 10,
+                    //               ),
+                    //               decoration: BoxDecoration(
+                    //                 color: Colors.deepPurple.shade100,
+                    //                 borderRadius: BorderRadius.circular(12),
+                    //               ),
+                    //               child: const Text(
+                    //                 'Next step',
+                    //                 style: TextStyle(
+                    //                   fontWeight: FontWeight.bold,
+                    //                 ),
+                    //               ),
+                    //             ),
+                    //           ),
+                    //         ),
+                    //     ],
+                    //   ),
 
-                    if (!provider.isSelected &&
-                        provider.processedImageUrl != null)
-                      Column(
-                        children: [
-                          _buildImageCard(
-                            context,
-                            title: "Processed Image",
-                            imageUrl: provider.processedImageUrl!,
-                          ),
-                          if (provider.vedioUrl == null && provider.step != 0)
-                            InkWell(
-                              onTap: () {
-                                final prompt = provider.textController.text
-                                    .trim();
-                                if (prompt.isNotEmpty) {
-                                  provider.generateImageFlow(prompt, 3);
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("Please enter a prompt"),
-                                    ),
-                                  );
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.deepPurple.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    'Next step',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                    // if (!provider.isSelected &&
+                    //     provider.processedImageUrl != null)
+                    //   Column(
+                    //     children: [
+                    //       _buildImageCard(
+                    //         context,
+                    //         title: "Processed Image",
+                    //         imageUrl: provider.processedImageUrl!,
+                    //       ),
+                    //       if (provider.vedioUrl == null && provider.step != 0)
+                    //         InkWell(
+                    //           onTap: () {
+                    //             final prompt = provider.textController.text
+                    //                 .trim();
+                    //             if (prompt.isNotEmpty) {
+                    //               provider.generateImageFlow(prompt, 3);
+                    //             } else {
+                    //               ScaffoldMessenger.of(context).showSnackBar(
+                    //                 const SnackBar(
+                    //                   content: Text("Please enter a prompt"),
+                    //                 ),
+                    //               );
+                    //             }
+                    //           },
+                    //           borderRadius: BorderRadius.circular(12),
+                    //           child: Align(
+                    //             alignment: Alignment.centerRight,
+                    //             child: Container(
+                    //               padding: EdgeInsets.symmetric(
+                    //                 horizontal: 16,
+                    //                 vertical: 10,
+                    //               ),
+                    //               decoration: BoxDecoration(
+                    //                 color: Colors.deepPurple.shade100,
+                    //                 borderRadius: BorderRadius.circular(12),
+                    //               ),
+                    //               child: Text(
+                    //                 'Next step',
+                    //                 style: TextStyle(
+                    //                   fontWeight: FontWeight.bold,
+                    //                 ),
+                    //               ),
+                    //             ),
+                    //           ),
+                    //         ),
+                    //     ],
+                    //   ),
 
-                    if (provider.vedioUrl != null &&
-                        provider.vedioUrl!.isNotEmpty &&
-                        provider.vedioUrl !=
-                            'The input or output was flagged as sensitive. Please try again with different inputs')
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Video",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 270,
-                            width: double.infinity,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: VideoPlayerWidget(
-                                videoUrl: provider.vedioUrl!,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    // if (provider.vedioUrl != null &&
+                    //     provider.vedioUrl!.isNotEmpty &&
+                    //     provider.vedioUrl !=
+                    //         'The input or output was flagged as sensitive. Please try again with different inputs')
+                    //   Column(
+                    //     mainAxisAlignment: MainAxisAlignment.start,
+                    //     crossAxisAlignment: CrossAxisAlignment.start,
+                    //     children: [
+                    //       Text(
+                    //         "Video",
+                    //         style: TextStyle(
+                    //           fontWeight: FontWeight.bold,
+                    //           fontSize: 16,
+                    //           color: Colors.black87,
+                    //         ),
+                    //       ),
+                    //       const SizedBox(height: 10),
+                    //       SizedBox(
+                    //         height: 270,
+                    //         width: double.infinity,
+                    //         child: ClipRRect(
+                    //           borderRadius: BorderRadius.circular(12),
+                    //           child: VideoPlayerWidget(
+                    //             videoUrl: provider.vedioUrl!,
+                    //           ),
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
                   ],
                 ),
               ),
@@ -629,5 +640,159 @@ class _ImageSearchScreenState extends State<ImageSearchScreen> {
         },
       ),
     );
+  }
+
+  Widget buildResponsiveContent(
+    BuildContext context,
+    ImageGeneratorProvider provider,
+  ) {
+    final isWeb = MediaQuery.of(context).size.width > 600;
+
+    final originalImageWidget = provider.originalImageUrl != null
+        ? Column(
+            children: [
+              _buildImageCard(
+                context,
+                title: "Original Image",
+                imageUrl: provider.originalImageUrl!,
+              ),
+              if (provider.processedImageUrl == null && provider.step != 0)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: InkWell(
+                    onTap: provider.isLoading
+                        ? null
+                        : () {
+                            final prompt = provider.textController.text.trim();
+                            if (prompt.isNotEmpty) {
+                              provider.generateImageFlow(prompt, 2);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Please enter a prompt"),
+                                ),
+                              );
+                            }
+                          },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Next step',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          )
+        : const SizedBox();
+
+    final processedImageWidget =
+        !provider.isSelected && provider.processedImageUrl != null
+        ? Column(
+            children: [
+              _buildImageCard(
+                context,
+                title: "Processed Image",
+                imageUrl: provider.processedImageUrl!,
+              ),
+              if (provider.vedioUrl == null && provider.step != 0)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: InkWell(
+                    onTap: () {
+                      final prompt = provider.textController.text.trim();
+                      if (prompt.isNotEmpty) {
+                        provider.generateImageFlow(prompt, 3);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Please enter a prompt"),
+                          ),
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Next step',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          )
+        : const SizedBox();
+
+    final videoWidget =
+        (provider.vedioUrl != null &&
+            provider.vedioUrl!.isNotEmpty &&
+            provider.vedioUrl !=
+                'The input or output was flagged as sensitive. Please try again with different inputs')
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Generated Video",
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onBackground,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 270,
+                width: double.infinity,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: VideoPlayerWidget(videoUrl: provider.vedioUrl!),
+                ),
+              ),
+            ],
+          )
+        : const SizedBox();
+
+    if (isWeb) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (provider.originalImageUrl != null)
+            Expanded(child: originalImageWidget),
+          if (!provider.isSelected && provider.processedImageUrl != null) ...[
+            const SizedBox(width: 16),
+            Expanded(child: processedImageWidget),
+          ],
+          if (provider.vedioUrl != null &&
+              provider.vedioUrl!.isNotEmpty &&
+              provider.vedioUrl !=
+                  'The input or output was flagged as sensitive. Please try again with different inputs') ...[
+            const SizedBox(width: 16),
+            Expanded(child: videoWidget),
+          ],
+        ],
+      );
+    } else {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [originalImageWidget, processedImageWidget, videoWidget],
+      );
+    }
   }
 }

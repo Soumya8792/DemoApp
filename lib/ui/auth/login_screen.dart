@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
 import 'package:textapp/provider/auth_provider.dart';
+import 'package:textapp/provider/theme_provider.dart';
 import 'package:textapp/ui/auth/forgotpassword_screen.dart';
 import 'package:textapp/ui/bottom_navigationbar.dart';
 import 'signup_screen.dart';
@@ -13,10 +14,53 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AuthProvider>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.themeMode == ThemeMode.dark;
     final size = MediaQuery.of(context).size;
     final bool isLargeScreen = size.width > 600;
 
     return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        actions: [
+          PopupMenuButton<String>(
+            icon: Icon(Icons.brightness_6, color: Colors.deepPurple),
+            onSelected: (value) {
+              if (value == 'Light') {
+                themeProvider.setTheme(ThemeMode.light);
+              } else if (value == 'Dark') {
+                themeProvider.setTheme(ThemeMode.dark);
+              } else {
+                themeProvider.setTheme(ThemeMode.system);
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'Light', child: Text('Light Mode')),
+              PopupMenuItem(value: 'Dark', child: Text('Dark Mode')),
+              PopupMenuItem(value: 'System', child: Text('System Default')),
+            ],
+          ),
+        ],
+      ),
+
+      // appBar: AppBar(
+      //   actions: [
+      //     Row(
+      //       children: [
+      //         const Icon(Icons.light_mode),
+      //         Switch(
+      //           value: isDarkMode,
+      //           onChanged: (value) {
+      //             themeProvider.toggleTheme(value);
+      //           },
+      //         ),
+      //         const Icon(Icons.dark_mode),
+      //         const SizedBox(width: 12),
+      //       ],
+      //     ),
+      //   ],
+      // ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(

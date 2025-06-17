@@ -14,7 +14,6 @@ import 'package:textapp/ui/home/chat_message.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ChatProvider with ChangeNotifier {
-
   String? getCurrentUserId() {
     return FirebaseAuth.instance.currentUser?.uid;
   }
@@ -47,21 +46,15 @@ class ChatProvider with ChangeNotifier {
   bool isImageUploading = false;
   bool isMultiImgLoading = false;
 
-  late final Box<ChatMessage> _box;
+  Box<ChatMessage> get _box => Hive.box<ChatMessage>('chat_messages');
 
   ChatProvider(this.imageGeneratorProvider) {
     _init();
     reloadMessages();
   }
 
-/// initialization for the Hive
+  /// initialization for the Hive
   Future<void> _init() async {
-    if (!Hive.isBoxOpen('chat_messages')) {
-      _box = await Hive.openBox<ChatMessage>('chat_messages');
-    } else {
-      _box = Hive.box<ChatMessage>('chat_messages');
-    }
-
     _messages.clear();
     _messages.addAll(_box.values.toList());
 
@@ -72,18 +65,28 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> reloadMessages() async {
-    if (!Hive.isBoxOpen('chat_messages')) {
-      _box = await Hive.openBox<ChatMessage>('chat_messages');
-    } else {
-      _box = Hive.box<ChatMessage>('chat_messages');
-    }
-
     _messages
       ..clear()
       ..addAll(_box.values.toList());
 
     notifyListeners();
   }
+
+  // Future<void> reloadMessages() async {
+  //   if (!Hive.isBoxOpen('chat_messages')) {
+  //     // Do not reassign _box if already initialized
+  //     final tempBox = await Hive.openBox<ChatMessage>('chat_messages');
+  //     _messages
+  //       ..clear()
+  //       ..addAll(tempBox.values.toList());
+  //   } else {
+  //     _messages
+  //       ..clear()
+  //       ..addAll(_box.values.toList());
+  //   }
+
+  //   notifyListeners();
+  // }
 
   void addUserMessage(String text) {
     final message = ChatMessage(text: text, isUser: true);
@@ -222,8 +225,7 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
-
-/// img picker for the both mobile and web
+  /// img picker for the both mobile and web
   Future<void> pickImages() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -282,7 +284,6 @@ class ChatProvider with ChangeNotifier {
     return downloadUrls;
   }
 
-
   /// upload the selected img in firebase - web
   Future<List<String>> uploadImagesBytesToFirebase(
     List<Uint8List> images,
@@ -309,8 +310,7 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
-
-  /// API Call for the fetcting and generate the img and video 
+  /// API Call for the fetcting and generate the img and video
 
   Future<void> callMultiImageApi(String text) async {
     if (imgUrl.isEmpty || promt.trim().isEmpty) {

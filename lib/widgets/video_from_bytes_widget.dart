@@ -36,7 +36,7 @@ class _VideoFromBytesWidgetState extends State<VideoFromBytesWidget> {
   @override
   void dispose() {
     _controller?.dispose();
-    disposeVideoResources(); 
+    disposeVideoResources();
     super.dispose();
   }
 
@@ -86,8 +86,22 @@ class _VideoFromBytesWidgetState extends State<VideoFromBytesWidget> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(_formatDuration(_controller!.value.position)),
-            Text(_formatDuration(_controller!.value.duration)),
+            Text(
+              _formatDuration(_controller!.value.position),
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black
+                    : Colors.black87,
+              ),
+            ),
+            Text(
+              _formatDuration(_controller!.value.duration),
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black
+                    : Colors.black87,
+              ),
+            ),
           ],
         ),
       ],

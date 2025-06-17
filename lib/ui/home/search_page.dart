@@ -18,6 +18,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode textField = FocusNode();
   final TextEditingController controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool isMobile(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    return width < 600;
+  }
+
   void _scrollToBottom(ChatProvider provider) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients && provider.messages.isNotEmpty) {
@@ -34,7 +39,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      final chatProvider = Provider.of<ChatProvider>(context);
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
       chatProvider.reloadMessages();
     });
     // final currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -55,11 +60,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = isMobile(context);
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        drawer: const AppDrawer(),
-        appBar: kIsWeb
+        drawer: mobile ? const AppDrawer() : null,
+        appBar: kIsWeb && !isMobile(context)
             ? null
             : AppBar(
                 title: const Text('AI Image Chat'),
@@ -120,7 +126,164 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ],
               ),
-        body: kIsWeb ? _buildWebLayout(context) : _buildMobileLayout(context),
+        body: Row(
+          children: [
+            if (!mobile)
+              Container(
+                width: 350,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[850]
+                    : Colors.grey[100],
+                child: Consumer<ChatProvider>(
+                  builder: (context, provider, _) {
+                    final userMessages = provider.messages
+                        .where(
+                          (msg) => msg.isUser && msg.text.trim().isNotEmpty,
+                        )
+                        .toList();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(9),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'User Searched Messages',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_outlined),
+                                tooltip: 'Clear History',
+                                onPressed: () {
+                                  provider.clearHistory();
+                                  provider.clearChat();
+                                },
+                                color: Theme.of(context).iconTheme.color,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        Expanded(
+                          child: userMessages.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    "No searched messages found.",
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: userMessages.length,
+                                  itemBuilder: (context, index) {
+                                    final msg = userMessages[index];
+                                    return ListTile(
+                                      leading: const Icon(
+                                        Icons.search,
+                                        color: Colors.blue,
+                                      ),
+                                      title: Text(
+                                        msg.text,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyLarge,
+                                      ),
+                                      onTap: () {},
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+
+            /// Main Chat Layout
+            Expanded(
+              child: Column(
+                children: [
+                  if (!mobile)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            'AI Image Generation',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert),
+                            onSelected: (value) async {
+                              final homeProvider =
+                                  Provider.of<ImageGeneratorProvider>(
+                                    context,
+                                    listen: false,
+                                  );
+                              final provider = Provider.of<ChatProvider>(
+                                context,
+                                listen: false,
+                              );
+
+                              if (value == 'image') {
+                                await homeProvider.fetchImgModels();
+                                if (context.mounted) {
+                                  provider.showModelSelectorDialog(
+                                    context,
+                                    homeProvider.imgmodelsMap,
+                                    homeProvider.selectedimgModel,
+                                    (selected) => provider
+                                        .updateSelectedImageModel(selected),
+                                    title: 'Select Image Model',
+                                  );
+                                }
+                              } else if (value == 'video') {
+                                await homeProvider.fetchVideoModels();
+                                if (context.mounted) {
+                                  provider.showModelSelectorDialog(
+                                    context,
+                                    homeProvider.videomodelsMap,
+                                    homeProvider.selectedvideoModel,
+                                    (selected) => provider
+                                        .updateSelectedVideoModel(selected),
+                                    title: 'Select Video Model',
+                                  );
+                                }
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'image',
+                                child: Text('Image Model'),
+                              ),
+                              PopupMenuItem(
+                                value: 'video',
+                                child: Text('Video Model'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  const Divider(height: 1),
+                  Expanded(child: _buildMobileLayout(context)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -161,7 +324,18 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(msg.text, style: const TextStyle(fontSize: 15)),
+                          Text(
+                            msg.text,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.black
+                                      : Colors.black54,
+                                ),
+                          ),
                           const SizedBox(height: 8),
                           if (msg.image != null && msg.image!.isNotEmpty)
                             ClipRRect(
@@ -518,21 +692,21 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Container(
               width: 350,
-              color: Colors.grey[100],
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[850] // Dark background
+                  : Colors.grey[100], // Light background
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: EdgeInsets.all(9),
+                    padding: const EdgeInsets.all(9),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           'User Searched Messages',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         IconButton(
                           icon: Icon(Icons.delete_outline_outlined),
@@ -541,6 +715,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             provider.clearHistory();
                             provider.clearChat();
                           },
+                          color: Theme.of(context).iconTheme.color,
                         ),
                       ],
                     ),
@@ -556,8 +731,11 @@ class _ChatScreenState extends State<ChatScreen> {
                             .toList();
 
                         return userMessages.isEmpty
-                            ? const Center(
-                                child: Text("No searched messages found."),
+                            ? Center(
+                                child: Text(
+                                  "No searched messages found.",
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
                               )
                             : ListView.builder(
                                 itemCount: userMessages.length,
@@ -568,7 +746,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                       Icons.search,
                                       color: Colors.blue,
                                     ),
-                                    title: Text(msg.text),
+                                    title: Text(
+                                      msg.text,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge,
+                                    ),
                                     onTap: () {},
                                   );
                                 },
@@ -723,13 +906,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   Expanded(
                     child: Consumer<ChatProvider>(
                       builder: (context, provider, _) {
-                        // Scroll to bottom after the frame is rendered
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           _scrollToBottom(provider);
                         });
 
                         return ListView.builder(
-                          controller: _scrollController, // Don't forget this!
+                          controller: _scrollController,
                           padding: const EdgeInsets.all(16),
                           itemCount: provider.messages.length,
                           itemBuilder: (context, index) {
@@ -753,7 +935,17 @@ class _ChatScreenState extends State<ChatScreen> {
                                   children: [
                                     Text(
                                       msg.text,
-                                      style: const TextStyle(fontSize: 15),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color:
+                                                Theme.of(context).brightness ==
+                                                    Brightness.dark
+                                                ? Colors.black
+                                                : Colors.black54,
+                                          ),
                                     ),
 
                                     if ((msg.image?.isNotEmpty ?? false) ||

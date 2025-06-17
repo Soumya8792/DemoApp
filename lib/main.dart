@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,6 +9,7 @@ import 'package:textapp/firebase_options.dart';
 import 'package:textapp/provider/auth_provider.dart' as myAuth;
 import 'package:textapp/provider/chat_provider.dart';
 import 'package:textapp/provider/home_provider.dart';
+import 'package:textapp/provider/theme_provider.dart';
 import 'package:textapp/ui/auth/login_screen.dart';
 import 'package:textapp/ui/bottom_navigationbar.dart';
 import 'package:textapp/ui/home/chat_message.dart';
@@ -45,6 +45,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => myAuth.AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => ImageGeneratorProvider()),
         ChangeNotifierProxyProvider<ImageGeneratorProvider, ChatProvider>(
           create: (context) =>
@@ -53,13 +54,17 @@ class MyApp extends StatelessWidget {
               ChatProvider(imageProvider),
         ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'TextApp',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        ),
-        home: const MainPage(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themProvider, child) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'TextApp',
+            theme: ThemeData.light(),
+            darkTheme: ThemeData.dark(),
+            themeMode: themProvider.themeMode,
+            home: const MainPage(),
+          );
+        },
       ),
     );
   }
