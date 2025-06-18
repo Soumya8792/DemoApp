@@ -12,7 +12,6 @@ import 'package:textapp/provider/home_provider.dart';
 import 'package:textapp/provider/theme_provider.dart';
 import 'package:textapp/ui/auth/login_screen.dart';
 import 'package:textapp/ui/bottom_navigationbar.dart';
-import 'package:textapp/ui/home/chat_message.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,11 +26,6 @@ void main() async {
     await Hive.initFlutter(dir.path);
   } else {
     await Hive.initFlutter();
-  }
-
-  Hive.registerAdapter(ChatMessageAdapter());
-  if (!Hive.isBoxOpen('chat_messages')) {
-    await Hive.openBox<ChatMessage>('chat_messages');
   }
 
   runApp(const MyApp());
@@ -93,93 +87,3 @@ class MainPage extends StatelessWidget {
     );
   }
 }
-
-// class MainPage extends StatefulWidget {
-//   const MainPage({super.key});
-
-//   @override
-//   State<MainPage> createState() => _MainPageState();
-// }
-
-// class _MainPageState extends State<MainPage> {
-//   bool _isLoading = true;
-//   bool _isLoggedIn = false;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _checkLogin();
-//   }
-
-//   Future<void> _checkLogin() async {
-//     final prefs = await SharedPreferences.getInstance();
-//     final storedToken = prefs.getString('user_token');
-//     final user = FirebaseAuth.instance.currentUser;
-
-//     if (user != null && storedToken != null && storedToken.isNotEmpty) {
-//       print("✅ Stored token: $storedToken");
-
-//       final authProvider = Provider.of<myAuth.AuthProvider>(
-//         context,
-//         listen: false,
-//       );
-//       await authProvider
-//           .fetchUserProfile(); // refresh userData and token if needed
-
-//       setState(() {
-//         _isLoggedIn = true;
-//       });
-//     } else {
-//       setState(() {
-//         _isLoggedIn = false;
-//       });
-//     }
-
-//     setState(() {
-//       _isLoading = false;
-//     });
-//   }
-
-//   // Future<void> _checkLogin() async {
-//   //   final authProvider = Provider.of<myAuth.AuthProvider>(
-//   //     context,
-//   //     listen: false,
-//   //   );
-//   //   final user = FirebaseAuth.instance.currentUser;
-
-//   //   if (user != null) {
-//   //     await authProvider.fetchUserProfile();
-
-//   //     if (authProvider.userData != null) {
-//   //       setState(() {
-//   //         _isLoggedIn = true;
-//   //       });
-//   //     } else {
-//   //       setState(() {
-//   //         _isLoggedIn = false;
-//   //       });
-//   //     }
-//   //   } else {
-//   //     setState(() {
-//   //       _isLoggedIn = false;
-//   //     });
-//   //   }
-
-//   //   setState(() {
-//   //     _isLoading = false;
-//   //   });
-//   // }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     if (_isLoading) {
-//       return const Scaffold(body: Center(child: CircularProgressIndicator()));
-//     }
-
-//     if (_isLoggedIn) {
-//       return BottomNavScreen();
-//     } else {
-//       return LoginScreen();
-//     }
-//   }
-// }

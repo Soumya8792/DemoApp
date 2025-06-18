@@ -90,11 +90,17 @@ class ProfileScreen extends StatelessWidget {
                   if ((userData['mobile'] ?? '').isNotEmpty ||
                       (userData['location'] ?? '').isNotEmpty)
                     Card(
-                      elevation: 3,
+                      elevation: Theme.of(context).brightness == Brightness.dark
+                          ? 3
+                          : 3,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                       color: Theme.of(context).cardColor,
+                      shadowColor:
+                          Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black,
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(

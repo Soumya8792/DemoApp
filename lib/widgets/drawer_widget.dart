@@ -1,4 +1,7 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:textapp/provider/chat_provider.dart';
 
@@ -26,39 +29,61 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: provider.history.isEmpty
+            child: provider.messages.isEmpty
                 ? const Center(child: Text('No history yet'))
-                : ListView.separated(
-                    padding: const EdgeInsets.all(0),
-                    itemCount: provider.history.length,
-                    separatorBuilder: (_, __) => Padding(
-                      padding: const EdgeInsets.only(left: 10, right: 10),
-                      child: const Divider(),
-                    ),
-                    itemBuilder: (context, index) {
-                      final prompt = provider.history[index];
-                      return ListTile(
-                        title: Text(
-                          prompt,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                : Builder(
+                    builder: (context) {
+                      final reversedMessages = provider.messages.reversed
+                          .toList();
+                      return ListView.separated(
+                        padding: EdgeInsets.zero,
+                        itemCount: reversedMessages.length,
+                        separatorBuilder: (_, __) => const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10),
+                          child: Divider(),
                         ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          // final controller = TextEditingController(
-                          //   text: prompt,
-                          // );
-                          // provider.addUserMessage(prompt);
-                          // provider.generateImage(prompt);
+                        itemBuilder: (context, index) {
+                          final prompt = reversedMessages[index];
+
+                          return Slidable(
+                            key: ValueKey(prompt.sId ?? index),
+                            startActionPane: ActionPane(
+                              motion: const DrawerMotion(),
+                              extentRatio: 0.25,
+                              children: [
+                                SlidableAction(
+                                  onPressed: (_) async {
+                                    log('🗑️ Deleting ID: ${prompt.sId!}');
+                                    await provider.deleteMessage(prompt.sId!);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Message deleted successfully',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  icon: Icons.delete,
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              title: Text(
+                                prompt.text ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                              },
+                            ),
+                          );
                         },
                       );
                     },
                   ),
-          ),
-          TextButton.icon(
-            onPressed: provider.clearHistory,
-            icon: const Icon(Icons.delete_forever),
-            label: const Text("Clear History"),
           ),
         ],
       ),

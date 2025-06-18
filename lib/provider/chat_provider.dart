@@ -6,30 +6,30 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:textapp/model/message_model.dart';
+import 'package:textapp/model/send_message_model.dart';
+import 'package:textapp/model/updaet_message_model.dart';
 import 'package:textapp/provider/home_provider.dart';
 import 'package:textapp/service/utils.dart';
-import 'package:textapp/ui/home/chat_message.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ChatProvider with ChangeNotifier {
-  String? getCurrentUserId() {
-    return FirebaseAuth.instance.currentUser?.uid;
-  }
+  List<Data> _messages = [];
+  List<Data> get messages => _messages;
 
-  final List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => _messages;
   List<Uint8List> webImages = [];
   List<File> mobileImages = [];
   List<String> imgUrl = [];
   List<String> history = [];
   String promt = "";
+  String? userId;
 
   final ImageGeneratorProvider imageGeneratorProvider;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+  bool _disposed = false;
 
   String? errorMsg;
   String? originalImageUrl;
@@ -39,6 +39,8 @@ class ChatProvider with ChangeNotifier {
   String? previousText;
   String? selectedimgModel;
   String? selectedvideoModel;
+  String? messageId;
+  String? msg;
 
   bool isImageLoading = false;
   bool isEnhanceLoading = false;
@@ -46,17 +48,33 @@ class ChatProvider with ChangeNotifier {
   bool isImageUploading = false;
   bool isMultiImgLoading = false;
 
-  Box<ChatMessage> get _box => Hive.box<ChatMessage>('chat_messages');
-
   ChatProvider(this.imageGeneratorProvider) {
     _init();
-    reloadMessages();
+
+    fetchMessagesByUser(userId!);
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void safeNotify() {
+    if (!_disposed) notifyListeners();
   }
 
   /// initialization for the Hive
   Future<void> _init() async {
     _messages.clear();
-    _messages.addAll(_box.values.toList());
+    final user = FirebaseAuth.instance.currentUser;
+    userId = user?.uid;
+
+    if (userId != null) {
+      debugPrint("✅ Firebase User ID: $userId");
+    } else {
+      debugPrint("❌ No Firebase user is currently signed in.");
+    }
 
     final prefs = await SharedPreferences.getInstance();
     history = prefs.getStringList('chat_history') ?? [];
@@ -64,77 +82,12 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> reloadMessages() async {
-    _messages
-      ..clear()
-      ..addAll(_box.values.toList());
-
-    notifyListeners();
-  }
-
-  // Future<void> reloadMessages() async {
-  //   if (!Hive.isBoxOpen('chat_messages')) {
-  //     // Do not reassign _box if already initialized
-  //     final tempBox = await Hive.openBox<ChatMessage>('chat_messages');
-  //     _messages
-  //       ..clear()
-  //       ..addAll(tempBox.values.toList());
-  //   } else {
-  //     _messages
-  //       ..clear()
-  //       ..addAll(_box.values.toList());
-  //   }
-
-  //   notifyListeners();
-  // }
-
-  void addUserMessage(String text) {
-    final message = ChatMessage(text: text, isUser: true);
-    _messages.add(message);
-    _box.add(message);
-    addToHistory(text);
-    notifyListeners();
-  }
-
-  void addAIMessage(String text, {Uint8List? image, Uint8List? vedioUrl}) {
-    final message = ChatMessage(
-      text: text,
-      isUser: false,
-      image: image,
-      videoUrl: vedioUrl,
-    );
-
-    _messages.add(message);
-    _box.add(message);
-    notifyListeners();
-  }
-
   Future<void> clearChat() async {
-    await _box.clear();
     _messages.clear();
     originalImageUrl = null;
     enhancedImageUrl = null;
     multiImageUrl = null;
     videoUrl = null;
-    notifyListeners();
-  }
-
-  void addToHistory(String prompt) {
-    if (!history.contains(prompt)) {
-      history.insert(0, prompt);
-      _saveHistory();
-    }
-  }
-
-  Future<void> _saveHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('chat_history', history);
-  }
-
-  void clearHistory() async {
-    history.clear();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('chat_history');
     notifyListeners();
   }
 
@@ -311,9 +264,134 @@ class ChatProvider with ChangeNotifier {
   }
 
   /// API Call for the fetcting and generate the img and video
+  ///
+  ///
+  ///
+  ///
+  Future<void> fetchMessagesByUser(String userId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final uri = Uri.parse('$baseurl/messages/$userId');
+
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final messageModel = MessageModel.fromJson(jsonResponse);
+        _messages = messageModel.data ?? [];
+      } else {
+        print('❌ Failed to fetch messages: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error fetching messages: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> sendMessage(String text) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final uri = Uri.parse('$baseurl/messages/$userId');
+    final headers = {'Content-Type': 'application/json'};
+    final body = jsonEncode({"text": text, "isUser": true});
+
+    try {
+      final response = await http.post(uri, headers: headers, body: body);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final sendMessageModel = SendMessageModel.fromJson(json);
+
+        if (sendMessageModel.success == true &&
+            sendMessageModel.message != null) {
+          messageId = sendMessageModel.message!.sId;
+          msg = sendMessageModel.message!.text;
+          await fetchMessagesByUser(userId!);
+          log("✅ Message sent successfully. ID: $messageId");
+        } else {
+          print("❌ Response success but message data is null");
+        }
+      } else {
+        print(
+          '❌ Failed to send message: ${response.statusCode} - ${response.reasonPhrase}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error sending message: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> updateMessage(String url, String type) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final uri = Uri.parse('$baseurl/messages/update/$messageId');
+    final headers = {'Content-Type': 'application/json'};
+
+    final Map<String, dynamic> body = {
+      "isUser": false,
+      if (type == 'image') "image": url,
+      if (type == 'video') "videoUrl": url,
+      if (type == 'multiImg') "multiImageUrl": [url],
+      if (type == 'enhance') "enhancedImageUrl": url,
+    };
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final updateResponse = UpdateMessageModel.fromJson(json);
+
+        log("✅ Success: ${updateResponse.success}");
+        log("📝 Message Text: ${updateResponse.message?.text}");
+        log("📸 Image URL: ${updateResponse.message?.image?.url}");
+        log("🎥 Video URL: ${updateResponse.message?.videoUrl?.url}");
+        log("🖼️ Multi Images: ${updateResponse.message?.multiImageUrl?.urls}");
+        log(
+          "✨ Enhanced Image: ${updateResponse.message?.enhancedImageUrl?.url}",
+        );
+      } else {
+        print(
+          '❌ Failed to update message: ${response.statusCode} - ${response.reasonPhrase}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error updating message: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final url = Uri.parse('$baseurl/messages/delete/$messageId');
+
+    final response = await http.delete(url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final message = data['message'];
+      await fetchMessagesByUser(userId!);
+      print('✅ Deleted: $message');
+    } else {
+      print('❌ Failed: ${response.statusCode} - ${response.reasonPhrase}');
+    }
+  }
 
   Future<void> callMultiImageApi(String text) async {
-    if (imgUrl.isEmpty || promt.trim().isEmpty) {
+    if (imgUrl.isEmpty || text.trim().isEmpty) {
       print("❌ Prompt or image URLs missing.");
       return;
     }
@@ -332,30 +410,27 @@ class ChatProvider with ChangeNotifier {
       "imageUrls": imgUrl,
     });
 
-    final request = http.Request('POST', url)
-      ..headers.addAll(headers)
-      ..body = body;
-
     try {
+      final request = http.Request('POST', url)
+        ..headers.addAll(headers)
+        ..body = body;
+
       final response = await request.send();
+      final resBody = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
-        final resBody = await response.stream.bytesToString();
         final decoded = json.decode(resBody);
-
         multiImageUrl = decoded['enhancedImageUrl'];
-        final imageBytesResponse = await http.get(Uri.parse(multiImageUrl!));
 
-        addAIMessage(
-          'Multi-image Generated',
-          image: imageBytesResponse.bodyBytes,
-        );
-        print("✅ Success: ${decoded["message"]}");
+        await updateMessage(multiImageUrl!, 'multiImg');
+        msg = null;
+        await fetchMessagesByUser(userId!);
+        print("✅ Multi-image success: ${decoded["message"]}");
       } else {
         print("❌ Error ${response.statusCode}: ${response.reasonPhrase}");
       }
     } catch (e) {
-      print("❌ Exception occurred: $e");
+      print("❌ Exception: $e");
     }
 
     isMultiImgLoading = false;
@@ -365,18 +440,17 @@ class ChatProvider with ChangeNotifier {
   Future<void> generateImage(String prompt) async {
     if (prompt.isEmpty) {
       errorMsg = 'Prompt cannot be empty.';
-      log('errorMsg: $errorMsg');
       notifyListeners();
       return;
     }
-    errorMsg = null;
 
+    errorMsg = null;
     _isLoading = true;
     isImageLoading = true;
     notifyListeners();
 
     try {
-      final imageResponse = await http.post(
+      final response = await http.post(
         Uri.parse('$baseurl/text-to-image'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
@@ -385,20 +459,19 @@ class ChatProvider with ChangeNotifier {
         }),
       );
 
-      if (imageResponse.statusCode == 200) {
-        final imageData = json.decode(imageResponse.body);
-        originalImageUrl = imageData['imageUrl'];
-        previousText = imageData['prompt'];
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        originalImageUrl = data['imageUrl'];
+        previousText = data['prompt'];
 
-        final imageBytesResponse = await http.get(Uri.parse(originalImageUrl!));
-        addAIMessage(prompt, image: imageBytesResponse.bodyBytes);
+        await updateMessage(originalImageUrl!, 'image');
+        await fetchMessagesByUser(userId!);
+        msg = null;
       } else {
-        errorMsg = 'Image generation failed: ${imageResponse.reasonPhrase}';
-        log('errorMsg$errorMsg');
+        errorMsg = 'Image generation failed: ${response.reasonPhrase}';
       }
     } catch (e) {
       errorMsg = 'Error: $e';
-      log('errorMsg$errorMsg');
     }
 
     _isLoading = false;
@@ -412,6 +485,7 @@ class ChatProvider with ChangeNotifier {
       notifyListeners();
       return;
     }
+
     errorMsg = null;
     _isLoading = true;
     isEnhanceLoading = true;
@@ -420,10 +494,7 @@ class ChatProvider with ChangeNotifier {
     try {
       if (previousText != prompt) {
         await generateImage(prompt);
-        if (originalImageUrl == null) {
-          _isLoading = false;
-          return;
-        }
+        if (originalImageUrl == null) return;
       }
 
       final res = await http.post(
@@ -436,8 +507,9 @@ class ChatProvider with ChangeNotifier {
         final data = json.decode(res.body);
         enhancedImageUrl = data['enhancedImageUrl'];
 
-        final imageRes = await http.get(Uri.parse(enhancedImageUrl!));
-        addAIMessage('Enhanced Image', image: imageRes.bodyBytes);
+        await updateMessage(enhancedImageUrl!, 'enhance');
+        await fetchMessagesByUser(userId!);
+        msg = null;
       } else {
         errorMsg = 'Failed to enhance image.';
       }
@@ -465,13 +537,7 @@ class ChatProvider with ChangeNotifier {
     try {
       if (previousText != prompt) {
         await generateImage(prompt);
-        if (originalImageUrl == null) {
-          errorMsg = 'Image generation failed. Cannot continue.';
-          _isLoading = false;
-          isVideoLoading = false;
-          notifyListeners();
-          return;
-        }
+        if (originalImageUrl == null) return;
 
         await generateEnhancedImage(prompt);
       }
@@ -479,9 +545,6 @@ class ChatProvider with ChangeNotifier {
       final imageUrlToUse = enhancedImageUrl ?? originalImageUrl;
       if (imageUrlToUse == null) {
         errorMsg = 'No valid image available for video generation.';
-        _isLoading = false;
-        isVideoLoading = false;
-        notifyListeners();
         return;
       }
 
@@ -499,12 +562,11 @@ class ChatProvider with ChangeNotifier {
         final data = json.decode(res.body);
         videoUrl = data['videoUrl'];
 
-        final videoBytesResponse = await http.get(Uri.parse(videoUrl!));
-
-        addAIMessage('Generated video', vedioUrl: videoBytesResponse.bodyBytes);
+        await updateMessage(videoUrl!, 'video');
+        await fetchMessagesByUser(userId!);
+        msg = null;
       } else {
         errorMsg = 'Failed to generate video: ${res.body}';
-        log('Video API Error: ${res.body}');
       }
     } catch (e) {
       errorMsg = 'Error: $e';
@@ -515,174 +577,3 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 }
-
-
-
-
-
-
-  // Future<void> storeMessageInFirestore({
-  //   required String userId,
-  //   required String prompt,
-  //   String? imageUrl,
-  //   String? videoUrl,
-  //   required bool isUser,
-  // }) async {
-  //   try {
-  //     await _firestore
-  //         .collection('chats')
-  //         .doc(userId)
-  //         .collection('messages')
-  //         .add({
-  //           'text': prompt,
-  //           'imageUrl': imageUrl,
-  //           'videoUrl': videoUrl,
-  //           'isUser': isUser,
-  //           'timestamp': FieldValue.serverTimestamp(),
-  //         });
-  //   } catch (e) {
-  //     print("❌ Error saving to Firestore: $e");
-  //   }
-  // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Future<void> fetchChatHistory(String userId) async {
-  //   final snapshot = await _firestore
-  //       .collection('chats')
-  //       .doc(userId)
-  //       .collection('messages')
-  //       .orderBy('timestamp')
-  //       .get();
-
-  //   messages.clear();
-
-  //   for (var doc in snapshot.docs) {
-  //     final data = doc.data();
-
-  //     Uint8List? img;
-  //     Uint8List? video;
-
-  //     try {
-  //       if (data['imageUrl'] != null &&
-  //           data['imageUrl'].toString().isNotEmpty) {
-  //         final imgRes = await http.get(Uri.parse(data['imageUrl']));
-  //         if (imgRes.statusCode == 200) {
-  //           img = imgRes.bodyBytes;
-  //         }
-  //       }
-
-  //       if (data['videoUrl'] != null &&
-  //           data['videoUrl'].toString().isNotEmpty) {
-  //         final vidRes = await http.get(Uri.parse(data['videoUrl']));
-  //         if (vidRes.statusCode == 200) {
-  //           video = vidRes.bodyBytes;
-  //         }
-  //       }
-  //     } catch (e) {
-  //       debugPrint('Error loading media: $e');
-  //     }
-
-  //     messages.add(
-  //       ChatMessage(
-  //         text: data['text'] ?? '',
-  //         senderId: data['senderId'],
-  //         isUser: data['senderId'] == FirebaseAuth.instance.currentUser?.uid,
-  //         image: img,
-  //         videoUrl: video,
-  //       ),
-  //     );
-  //   }
-
-  //   notifyListeners();
-  // }
-
-// import 'package:flutter/material.dart';
-// import 'package:hive/hive.dart';
-// import 'package:stability_image_generation/stability_image_generation.dart';
-// import '../ui/home/chat_message.dart';
-
-// class ChatProvider extends ChangeNotifier {
-//   final StabilityAI _ai = StabilityAI();
-//   final String apiKey = 'sk-W2TUswiUDwZmGxPE5DEKjRNUwQsoZMI6MBZIrDwERa0UjUxl';
-//   final ImageAIStyle imageAIStyle = ImageAIStyle.digitalPainting;
-
-//   final List<ChatMessage> _messages = [];
-//   List<ChatMessage> get messages => _messages;
-
-//   bool _isLoading = false;
-//   bool get isLoading => _isLoading;
-
-//   String? _error;
-//   String? get error => _error;
-
-//   late final Box<ChatMessage> _box;
-
-//   ChatProvider() {
-//     _init();
-//   }
-
-//   Future<void> _init() async {
-//     _box = Hive.box<ChatMessage>('chat_messages');
-//     _messages.clear();
-//     _messages.addAll(_box.values.toList());
-//     notifyListeners();
-//   }
-
-//   void addUserMessage(String text) {
-//     final message = ChatMessage(text: text, image: null, isUser: true);
-//     _messages.add(message);
-//     _box.add(message);
-//     notifyListeners();
-//   }
-
-//   Future<void> generateImage(String prompt) async {
-//     _isLoading = true;
-//     _error = null;
-//     notifyListeners();
-
-//     try {
-//       final image = await _ai.generateImage(
-//         apiKey: apiKey,
-//         imageAIStyle: imageAIStyle,
-//         prompt: prompt,
-//       );
-
-//       if (image.isNotEmpty) {
-//         final aiMessage = ChatMessage(text: prompt, image: image, isUser: false);
-//         _messages.add(aiMessage);
-//         _box.add(aiMessage);
-//       } else {
-//         _error = 'No image was generated.';
-//       }
-//     } catch (e) {
-//       _error = e.toString();
-//     }
-
-//     _isLoading = false;
-//     notifyListeners();
-//   }
-
-//   Future<void> clearChat() async {
-//     await _box.clear();
-//     _messages.clear();
-//     notifyListeners();
-//   }
-// }

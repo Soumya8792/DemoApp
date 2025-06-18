@@ -1,12 +1,14 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
-import 'video_from_bytes_platform.dart'; // <-- Important
 
 class VideoFromBytesWidget extends StatefulWidget {
   final Uint8List videoBytes;
 
-  const VideoFromBytesWidget({super.key, required this.videoBytes});
+  const VideoFromBytesWidget({Key? key, required this.videoBytes})
+    : super(key: key);
 
   @override
   State<VideoFromBytesWidget> createState() => _VideoFromBytesWidgetState();
@@ -23,20 +25,35 @@ class _VideoFromBytesWidgetState extends State<VideoFromBytesWidget> {
   }
 
   Future<void> _initVideo() async {
-    _controller = await createVideoController(widget.videoBytes);
-    await _controller!.initialize();
-    _controller!.play();
-    setState(() => isPlaying = true);
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final tempFilePath = '${tempDir.path}/temp_video.mp4';
+      final file = File(tempFilePath);
+      await file.writeAsBytes(widget.videoBytes);
 
-    _controller!.addListener(() {
-      if (mounted) setState(() {});
-    });
+      _controller = VideoPlayerController.file(file);
+
+      await _controller!.initialize();
+
+      if (!mounted) return;
+
+      _controller!.play();
+      setState(() => isPlaying = true);
+
+      _controller!.addListener(_videoListener);
+    } catch (e) {
+      debugPrint('Video init error: $e');
+    }
+  }
+
+  void _videoListener() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _controller?.removeListener(_videoListener);
     _controller?.dispose();
-    disposeVideoResources();
     super.dispose();
   }
 
@@ -83,26 +100,29 @@ class _VideoFromBytesWidgetState extends State<VideoFromBytesWidget> {
             ],
           ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _formatDuration(_controller!.value.position),
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.black
-                    : Colors.black87,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatDuration(_controller!.value.position),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black
+                      : Colors.black87,
+                ),
               ),
-            ),
-            Text(
-              _formatDuration(_controller!.value.duration),
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.black
-                    : Colors.black87,
+              Text(
+                _formatDuration(_controller!.value.duration),
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black
+                      : Colors.black87,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -127,7 +147,7 @@ class _ControlsOverlay extends StatelessWidget {
           controller.value.isPlaying
               ? Icons.pause_circle_filled
               : Icons.play_circle_filled,
-          size: 40.0,
+          size: 48.0,
           color: Colors.white,
         ),
       ),
